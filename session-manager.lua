@@ -58,10 +58,10 @@ end
 
 --- Displays a notification in WezTerm.
 -- @param message string: The notification message to be displayed.
-local function display_notification(message)
-  wezterm.log_info(message)
-  -- Additional code to display a GUI notification can be added here if needed
-end
+-- local function display_notification(message)
+--   wezterm.log_info(message)
+--   -- Additional code to display a GUI notification can be added here if needed
+-- end
 
 --- Retrieves the current workspace data from the active window.
 -- @return table or nil: The workspace data table or nil if no active window is found.
@@ -73,16 +73,22 @@ local function retrieve_workspace_data(window)
   }
 
   -- Iterate over tabs in the current window
-  for _, tab in ipairs(window:mux_window():tabs()) do
+  for index, tab_info in ipairs(window:mux_window():tabs_with_info()) do
+    if index == 1 then
+      workspace_data.size = tab_info.tab:get_size()
+    end
+
     local tab_data = {
-      tab_id = tostring(tab:tab_id()),
+      tab_id = tostring(tab_info.tab:tab_id()),
+      is_active = tab_info.is_active,
       panes = {},
     }
 
     -- Iterate over panes in the current tab
-    for _, pane_info in ipairs(tab:panes_with_info()) do
+    for _, pane_info in ipairs(tab_info.tab:panes_with_info()) do
       -- Collect pane details, including layout and process information
       table.insert(tab_data.panes, {
+        action = '',
         pane_id = tostring(pane_info.pane:pane_id()),
         index = pane_info.index,
         is_active = pane_info.is_active,
@@ -170,6 +176,7 @@ local function recreate_workspace(window, workspace_data)
     wezterm.log_info('Active program detected. Skipping exit command for initial pane.')
   end
 
+  local active_tab = nil
   -- Recreate tabs and panes from the saved state
   for _, tab_data in ipairs(workspace_data.tabs) do
     local cwd_uri = tab_data.panes[1].cwd
@@ -182,7 +189,11 @@ local function recreate_workspace(window, workspace_data)
     end
 
     -- Activate the new tab before creating panes
-    new_tab:activate()
+    -- new_tab:activate()
+    local active_pane = nil
+    if tab_data.is_active then
+      active_tab = new_tab
+    end
 
     -- Recreate panes within this tab
     for j, pane_data in ipairs(tab_data.panes) do
@@ -219,10 +230,25 @@ local function recreate_workspace(window, workspace_data)
       -- end
 
       -- Run a cli command defined by the user
-      if pane_data.action then
+      if pane_data.action and pane_data.action ~= '' then
         new_pane:send_text(pane_data.action .. '\n')
       end
+
+      if pane_data.is_active then
+        active_pane = new_pane
+      end
     end
+
+    if active_pane then
+      active_pane:activate()
+    end
+  end
+
+  if active_tab then
+    -- Lazy load after active_pane:activate()
+    wezterm.time.call_after(0.2, function()
+      active_tab:activate()
+    end)
   end
 
   wezterm.log_info('Workspace recreated with new tabs and panes based on saved state.')
@@ -256,14 +282,14 @@ function session_manager.restore_state(window)
 
   local workspace_data = load_from_json_file(file_path)
   if not workspace_data then
-    window:toast_notification('WezTerm', 'Workspace state file not found for workspace: ' .. workspace_name, nil, 4000)
+    window:toast_notification('WezTerm', 'Workspace state file not found for workspace: ' .. workspace_name, nil, 500)
     return
   end
 
   if recreate_workspace(window, workspace_data) then
-    window:toast_notification('WezTerm', 'Workspace state loaded for workspace: ' .. workspace_name, nil, 4000)
+    window:toast_notification('WezTerm', 'Workspace state loaded for workspace: ' .. workspace_name, nil, 500)
   else
-    window:toast_notification('WezTerm', 'Workspace state loading failed for workspace: ' .. workspace_name, nil, 4000)
+    window:toast_notification('WezTerm', 'Workspace state loading failed for workspace: ' .. workspace_name, nil, 500)
   end
 end
 
@@ -307,19 +333,19 @@ function session_manager.load_state(window, pane)
             'WezTerm',
             'Workspace state file not found for workspace: ' .. workspace_name,
             nil,
-            4000
+            500
           )
           return
         end
 
         if recreate_workspace(win, workspace_data) then
-          window:toast_notification('WezTerm', 'Workspace state loaded for workspace: ' .. workspace_name, nil, 4000)
+          window:toast_notification('WezTerm', 'Workspace state loaded for workspace: ' .. workspace_name, nil, 500)
         else
           window:toast_notification(
             'WezTerm',
             'Workspace state loading failed for workspace: ' .. workspace_name,
             nil,
-            4000
+            500
           )
         end
       end),
@@ -342,9 +368,9 @@ function session_manager.save_state(window, pane)
 
   -- Save the workspace data to a JSON file and display the appropriate notification
   if save_to_json_file(data, file_path) then
-    window:toast_notification('WezTerm Session Manager', 'Workspace state saved successfully', nil, 4000)
+    window:toast_notification('WezTerm Session Manager', 'Workspace state saved successfully', nil, 500)
   else
-    window:toast_notification('WezTerm Session Manager', 'Failed to save workspace state', nil, 4000)
+    window:toast_notification('WezTerm Session Manager', 'Failed to save workspace state', nil, 500)
   end
 end
 
