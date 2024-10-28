@@ -1,2 +1,2 @@
-wezterm_state_*.json
-*.json
+# wezterm_state_*.json
+/state

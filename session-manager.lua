@@ -42,7 +42,8 @@ end
 -- PATHS
 --
 local home_dir = normalize_path(wezterm.home_dir)
-local state_path = home_dir .. '/.config/wezterm/wezterm-session-manager/'
+local state_path = home_dir .. '/.config/wezterm/wezterm-session-manager/state/'
+local truncate_str = home_dir .. '/.config/wezterm/wezterm%-session%-manager/state/'
 
 local fd = (
   file_exists('/ProgramData/chocolatey/bin/fd.exe')
@@ -310,7 +311,7 @@ function session_manager.load_state(window, pane)
   }
 
   for line in stdout:gmatch('([^\n]*)\n?') do
-    local label = line:gsub(home_dir .. '/.config/wezterm/wezterm%-session%-manager/', ''):gsub('%.json', '')
+    local label = line:gsub(truncate_str, ''):gsub('%.json', '')
     local id = line
     table.insert(workspaces, { label = tostring(label), id = tostring(id) })
   end
